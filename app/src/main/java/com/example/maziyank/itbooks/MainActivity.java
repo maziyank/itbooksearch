@@ -44,8 +44,8 @@ public class MainActivity extends AppCompatActivity {
     @BindView(R.id.recycler_view)
     RecyclerView recyclerView;
 
-    private int MaxPage;
     private int CurrentPage;
+    private int MaxPage;
     public List<BookItem> bookList;
     public BookAdapter mAdapter;
     private EndlessRecyclerViewScrollListener scrollListener;
@@ -97,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void LoadData(final String query) {
-        recyclerViewState = recyclerView.getLayoutManager().onSaveInstanceState();
         if (this.CurrentPage==1) progressView.setVisibility(View.VISIBLE);
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -107,35 +106,38 @@ public class MainActivity extends AppCompatActivity {
 
         API restAPI = retrofit.create(API.class);
 
-
         Call<ResponseBook> getBooksData = restAPI.getBooksData(query, Integer.toString(this.CurrentPage));
         getBooksData.enqueue(new Callback<ResponseBook>() {
             @Override
             public void onResponse(Call<ResponseBook> call, Response<ResponseBook> response) {
                 Log.d("API", "onResponse: "+ response.raw().toString());
-                if (response.body().getPage() == 1)
+                if (response.body().getPage() == 1){
+                    MainActivity.this.MaxPage = (int) Math.ceil( Integer.parseInt(response.body().getTotal()) / 10) ;
                     bookList = response.body().getBooks();
+                    mAdapter = new BookAdapter(MainActivity.this, bookList);
+
+                    if (Integer.parseInt(response.body().getTotal())>0)  {
+                        recyclerView.setAdapter(mAdapter);
+                        txtInfo.setVisibility(View.INVISIBLE);
+                        recyclerView.setVisibility(View.VISIBLE);
+
+                    } else {
+                        txtInfo.setVisibility(View.VISIBLE);
+                        recyclerView.setVisibility(View.INVISIBLE);
+                        txtInfo.setText("No Books Found");
+                    }
+                    progressView.setVisibility(View.INVISIBLE);
+                }
                 else {
-                    List<BookItem> bl = response.body().getBooks();
-                    bookList.addAll(bl.size(), bl);
-                    Log.d("ss", Integer.toString(bookList.size()));
-                    recyclerView.getLayoutManager().onRestoreInstanceState(recyclerViewState);
+                    recyclerViewState = recyclerView.getLayoutManager().onSaveInstanceState();
+                    if (Integer.parseInt(response.body().getTotal())>0){
 
+                        List<BookItem> bl = response.body().getBooks();
+                        bookList.addAll(bl.size(), bl);
+                        Log.d("ss", Integer.toString(bookList.size()));
+                        recyclerView.getLayoutManager().onRestoreInstanceState(recyclerViewState);
+                    }
                 }
-
-                mAdapter = new BookAdapter(MainActivity.this, bookList);
-                if (Integer.parseInt(response.body().getTotal())>0)  {
-                    recyclerView.setAdapter(mAdapter);
-                    txtInfo.setVisibility(View.INVISIBLE);
-                    recyclerView.setVisibility(View.VISIBLE);
-
-                } else {
-                    txtInfo.setVisibility(View.VISIBLE);
-                    recyclerView.setVisibility(View.INVISIBLE);
-                    txtInfo.setText("No Books Found");
-                }
-                progressView.setVisibility(View.INVISIBLE);
-
             }
 
             @Override
@@ -164,16 +166,18 @@ public class MainActivity extends AppCompatActivity {
         scrollListener = new EndlessRecyclerViewScrollListener(manager) {
             @Override
             public void onLoadMore(int page, int totalItemsCount, RecyclerView view) {
-                Log.d("loadmore", "onLoadMore: ");
-                MainActivity.this.CurrentPage += 1;
-                LoadData("HTML");
+//                Log.d("loadmore", "onLoadMore: ");
+                if (MainActivity.this.CurrentPage <= MainActivity.this.MaxPage) {
+                    MainActivity.this.CurrentPage += 1;
+                    LoadData("HTML");
+                }
 
             }
         };
         // Adds the scroll listener to RecyclerView
         recyclerView.addOnScrollListener(scrollListener);
 
-        String query = (GetQuery(getIntent()) != null) ? GetQuery(getIntent()) : "HTML";
+        String query = (GetQuery(getIntent()) != null) ? GetQuery(getIntent()) : "mysql";
         this.CurrentPage = 1;
         LoadData(query);
     }
